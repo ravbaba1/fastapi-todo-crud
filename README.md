@@ -1,20 +1,18 @@
-# FastAPI To-Do CRUD API 🛠️🔒
+# FastAPI To-Do CRUD API with SQLite Persistent Database 🛠️🗄️🔒
 
-A lightweight, learning-focused backend CRUD API built during my internship at **Flyrank**. This project focuses on building foundational backend pathways while maintaining a sharp focus on input validation and security.
+A production-style learning backend project completed for my **Flyrank** internship track. This project demonstrates building full CRUD routes integrated directly with a localized relational database.
 
-## 🚀 Features Built
-- **Create (`POST`)**: Allows users to add tasks safely.
-- **Read (`GET`)**: Fetches all tasks or targets a specific task by its ID.
-- **Update (`PUT`)**: Modifies titles and completion status.
-- **Delete (`DELETE`)**: Removes tasks cleanly from application memory.
+## 🚀 Key Milestone Stages Completed
+- **Stage 0-3 (CRUD Routing)**: Programmed clean endpoints using FastAPI to handle full data life cycles.
+- **Stage 4 (Raw SQL Mastery)**: Configured schema directly using native SQLite statements and verified row indexes inside the engine room interface.
+- **Stage 5 (Data Persistence & Schema Rules)**: Migrated local runtime memory storage into an isolated hard drive database (`todo.db`) using relational tables.
 
-## 🛡️ Offensive Security Takeaways
-During this build, I explored data injection vulnerabilities:
-- Implemented strict **Pydantic schema validation** to enforce type safety.
-- Blocked malicious string payloads (`422 Unprocessable Content`) that could break data pipeline integrity or lead to data poisoning.
-- Explored API structures using the interactive **Swagger UI** mapping tool.
+## 🛡️ Offensive Security Principles Applied
+- **SQL Injection (SQLi) Defense**: Replaced all string concatenation queries with strictly bounded **parameterized parameters** (`?` placeholders). This isolates incoming user fields so malicious commands are never executed by the SQL engine.
+- **Data Poisoning Mitigation**: Mandated type safety checking via **Pydantic models**, dropping structural payloads that fail schema verification rules (`422 Unprocessable Content`).
 
-## 💻 Tech Stack
+## 💻 Technical Stack
 - Python 3.13
 - FastAPI
+- SQLite3
 - Pydantic
