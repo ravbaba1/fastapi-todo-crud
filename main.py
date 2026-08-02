@@ -1,8 +1,15 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from database import init_db
+
 import sqlite3
 
 app = FastAPI()
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
+
 
 class TaskBlueprint(BaseModel):
     title: str

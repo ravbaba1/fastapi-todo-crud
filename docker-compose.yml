@@ -1,0 +1,30 @@
+services:
+  # 1. The PostgreSQL Database Service
+  db:
+    image: postgres:16-alpine
+    container_name: flyrank_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: my_secure_password_123
+      POSTGRES_DB: flyrank_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 2. Your FastAPI Application Service
+  web:
+    build: .
+    container_name: flyrank_api
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+
+# 3. The "External Hard Drive" to keep data safe
+volumes:
+  postgres_data:
