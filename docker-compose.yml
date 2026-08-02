@@ -4,10 +4,9 @@ services:
     image: postgres:16-alpine
     container_name: flyrank_postgres
     restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: my_secure_password_123
-      POSTGRES_DB: flyrank_db
+    # This automatically injects all variables from your hidden .env into this container
+    env_file:
+      - .env
     ports:
       - "5432:5432"
     volumes:
