@@ -35,3 +35,54 @@ To verify that data survives independent container lifecycles, the following tes
 4. Stopped the active execution stack using `Ctrl + C` and cleanly dismantled the environment via `docker compose down`.
 5. Restarted the system using `docker compose up`.
 6. Executed a subsequent `GET` request. The previously saved items persisted intact, proving that the `postgres_data` volume is bound and storing state information correctly.
+7. # Secure Backend Identity & Access Control API
+
+This milestone updates our containerized FastAPI stack with enterprise-grade User Authentication, cryptographic token validation, and hardened tenant database isolation.
+
+## 🛡️ Applied Security Implementations
+
+1. **Cryptographic Identity Control**: Complete integration with the Supabase GoTrue Auth layer using FastAPI's `HTTPBearer` pattern [ravbaba1]. The backend intercepts incoming requests, strips the Bearer token, and cryptographically validates the JWT signature, integrity, and lifespan [ravbaba1].
+2. **Anti-IDOR (Insecure Direct Object Reference) Defense**: Neutralized data leak vulnerabilities by re-architecting the database schema to include a mandatory `user_id` column. Every SQL query is parameterized (`WHERE user_id = ?`) to enforce strict ownership boundaries [ravbaba1]. 
+3. **SQL Injection Countermeasures**: Zero raw string interpolation inside query paths. Input sanitization is handled natively via query parameters.
+
+---
+
+## 🚀 Environment Configuration
+
+Create a `.env` file in the root directory to store your project secrets (this file is masked from Git via `.gitignore`):
+
+```env
+SUPABASE_URL="https://supabase.co"
+SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVC..."
+```
+
+---
+
+## 🛠️ Deployment & Manual Security Audit Flow
+
+To launch the secure container stack and perform an exploit verification run:
+
+### 1. Rebuild and Run the Stack
+```bash
+# Clear old stale volumes and build caches
+docker compose down --volumes --remove-orphans
+docker rmi backendenginnering-web
+
+# Build fresh from manifests and boot
+docker compose build --no-cache
+docker compose up
+```
+
+### 2. Manual Penetration Testing (Swagger UI)
+Once Uvicorn starts, open your host browser to `http://localhost:8000/docs`.
+
+* **Step 1 (Sign Up & Log In)**: Use `POST /auth/signup` to register a test user. Authenticate via `POST /auth/login` to obtain your long `access_token` string [ravbaba1].
+* **Step 2 (Unlock Route Guardians)**: Click the green **Authorize 🔓** button at the top right of Swagger UI [ravbaba1]. Paste the raw token payload into the value box and click authorize [ravbaba1]. All endpoints will lock securely (**🔒**).
+* **Step 3 (Verify Route Protection)**: Execute a `GET /tasks` request without an authorization token to verify the server instantly drops the connection with a `401 Unauthorized` block.
+
+### 3. Multi-Tenant Isolation Simulation (IDOR Audit)
+1. Authenticate as **User A**, create an object using `POST /tasks`, and copy the assigned task index `id` (e.g., `1`).
+2. Clear your browser auth state, login under a separate context as **User B**, and apply User B's token to the authorization field.
+3. Attempt to fetch or execute a malicious `DELETE /tasks/1` targeting User A's row.
+4. Verify the database context boundary captures the mismatch, blocks the execution vector, and returns a secure error: `"Item not found or unauthorized deletion attempt."`
+
