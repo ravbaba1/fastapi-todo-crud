@@ -53,7 +53,7 @@ Create a `.env` file in the root directory to store your project secrets (this f
 
 ```env
 SUPABASE_URL="https://supabase.co"
-SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVC..."
+SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1N......."
 ```
 
 ---
