@@ -1,34 +1,27 @@
-import os
-import psycopg
-from psycopg.rows import dict_row
-from dotenv import load_dotenv
-
-# Load the secret variables from the .env file
-load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
+import sqlite3
 
 def get_db_connection():
-    """Establishes a connection to the Postgres database."""
-    # We add row_factory=dict_row here. This replaces the old RealDictCursor layout!
-    conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+    """Establishes a connection to the local SQLite database file."""
+    conn = sqlite3.connect("todo.db")
+    conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
-    """Creates the database table automatically if it doesn't exist yet."""
+    """Creates the local SQLite items table automatically if it doesn't exist yet."""
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # NOTE: Replace 'items' and the columns below with your actual data structure
-    # For example, if your CRUD app tracks 'users', change this to match your old setup!
+    # We build the 'items' table with the exact columns your endpoints require
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS items (
-            id SERIAL PRIMARY KEY,
-            title VARCHAR(100) NOT NULL,
-            description TEXT
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL
         );
     """)
     
     conn.commit()
     cursor.close()
     conn.close()
-    print("Database table initialized successfully!")
+    print("Database table 'items' initialized successfully with anti-IDOR defense columns!")
