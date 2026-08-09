@@ -86,3 +86,135 @@ Once Uvicorn starts, open your host browser to `http://localhost:8000/docs`.
 3. Attempt to fetch or execute a malicious `DELETE /tasks/1` targeting User A's row.
 4. Verify the database context boundary captures the mismatch, blocks the execution vector, and returns a secure error: `"Item not found or unauthorized deletion attempt."`
 
+# Book Scraper → Secure To-Do API Pipeline
+
+A small, polite scraper that pulls 60 books from [books.toscrape.com](https://books.toscrape.com/)
+(a free, scraping-legal practice site), cleans and validates the data, then
+stores it through an authenticated FastAPI + Supabase backend.
+
+## What this project actually does
+
+Two things are happening, and it's worth keeping them separate:
+
+1. **Scraping and cleaning** — `scraper.py` fetches paginated HTML, parses
+   messy text like `"£51.77"` and `"Three"` into real numbers, and validates
+   every record against a Pydantic schema before it goes anywhere.
+2. **Storage** — the backend (`main.py`) only exposes a to-do API
+   (`/tasks`), so each validated book gets reshaped to fit that schema:
+   price and rating are folded into the task's `title` string, and stock
+   status becomes `completed`. A book isn't conceptually a task — it's
+   adapted to fit the one storage container available. See
+   [Known limitations](#known-limitations) below for how to fix this properly.
+
+## Architecture
+
+```
+books.toscrape.com  →  scraper.py  →  BookSchema (validation)  →  FastAPI /tasks  →  SQLite (items table)
+                                                ↑
+                                      authenticated via Supabase
+                                      (/auth/login, Bearer token)
+```
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `main.py` | FastAPI backend. Handles Supabase auth (`/auth/signup`, `/auth/login`) and a Bearer-token-protected CRUD API for `/tasks`, backed by a local SQLite `items` table. |
+| `database.py` | SQLite connection + table setup (referenced by `main.py`; not covered in detail here). |
+| `scraper.py` | The scraper. Logs into the API, scrapes 60 books across 3 pages, validates each with `BookSchema`, and POSTs each one to `/tasks`. |
+| `.env` | Holds real credentials (Supabase keys, scraper login). **Never commit this file.** |
+
+## Setup
+
+### 1. Install dependencies
+
+```bash
+pip install fastapi uvicorn python-dotenv supabase requests beautifulsoup4 pydantic
+```
+
+### 2. Environment variables
+
+Create a `.env` file in the project root (same folder as `main.py` and
+`scraper.py`) with:
+
+```
+SUPABASE_URL=your-supabase-project-url
+SUPABASE_ANON_KEY=your-supabase-anon-key
+API_USER_EMAIL=your-real-email@example.com
+API_USER_PASSWORD=your-real-password
+```
+
+Use the **real** credentials for an account you've already created and
+confirmed — not placeholder text. `scraper.py` loads this file automatically
+via `python-dotenv`; values already set in your shell take priority over
+`.env` if both are present.
+
+### 3. Create and confirm a user
+
+Start the backend (`uvicorn main:app --reload`), open Swagger UI at
+`http://127.0.0.1:8000/docs`, and use `/auth/signup` to create the account
+matching your `.env` credentials. Supabase will send a confirmation email —
+click the link (or manually confirm the user in the Supabase dashboard under
+Authentication → Users) before login will work.
+
+## Running it
+
+```bash
+# Terminal 1 — start the backend
+uvicorn main:app --reload
+
+# Terminal 2 — run the scraper
+python scraper.py
+```
+
+Expected output: a robots.txt check, a successful login, then 60 "Success"
+log lines as each book is validated and inserted, ending on a summary line.
+
+## What makes the scraper "polite"
+
+- **Checks `robots.txt` before touching anything else.** Refuses to run if
+  the target page is disallowed or robots.txt can't be read at all.
+- **Identifies itself honestly.** Sends a descriptive `User-Agent` rather
+  than pretending to be a browser.
+- **Throttles requests.** A fixed delay between page fetches (`REQUEST_DELAY`).
+- **Retries with backoff, not forever.** Network hiccups get a few retries
+  with increasing wait time rather than an infinite loop or an instant crash.
+- **Never trusts scraped data.** Every record is checked against
+  `BookSchema` (title required, price > 0, rating 1–5) before it's sent to
+  the API. Anything that fails validation is logged and dropped — it never
+  reaches the database.
+
+## Known limitations
+
+- **Price and rating aren't stored as real fields.** `TaskBlueprint` only
+  has `title` and `completed`, so the scraper crams price/rating into the
+  title as text (`"Book Title (£51.77, 3★)"`). To fix properly: add
+  `price` and `rating` columns to the `items` table and matching fields to
+  `TaskBlueprint`, then update both `main.py`'s `create_task` and
+  `scraper.py`'s `api_payload` to use them directly.
+- **Re-running the scraper duplicates data.** Nothing currently checks
+  "has this book already been stored?" — running it twice produces 120
+  rows, not 60. A unique key (e.g. the book's detail-page URL) would be
+  needed to make re-runs safe.
+- **SQLite `id` gaps after deletes are normal.** IDs don't reset or reuse
+  after a row is deleted (e.g. test tasks made via Swagger) — an id range
+  like 3–62 instead of 1–60 just reflects earlier rows that were deleted,
+  not a scraping error.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `Missing API_USER_EMAIL / API_USER_PASSWORD environment variables` | Vars not set in this shell session, or `.env` isn't being loaded/found | Set them with `$env:API_USER_EMAIL = '...'` (PowerShell) for this session, or confirm `.env` is in the same folder and `python-dotenv` is installed |
+| `401 Client Error: Unauthorized` on login | Credentials don't match a real, confirmed Supabase account | Log the response body (`Login rejected (401): {...}`) to see the real Supabase message — usually "Invalid login credentials" (wrong email/password) or "Email not confirmed" |
+| Env var prints as literal placeholder text (`you@example.com`) | Example command copied verbatim without substituting real values | Re-set with your actual credentials, in single quotes in PowerShell to avoid `$`-expansion issues |
+| Scraper gets 0 books, page has no `article.product_pod` | Wrong start URL (e.g. `toscrape.com` instead of `books.toscrape.com`) | Confirm `BOOK_SITE_START = "https://books.toscrape.com/index.html"` |
+| Task IDs don't start at 1 | Earlier test rows were created and deleted; SQLite doesn't reuse ids | Expected behavior, not a bug — row *count* is what matters |
+
+## Result
+
+60 books scraped across 3 pages, each validated for a non-empty title, a
+positive numeric price, and a rating between 1 and 5, then stored through an
+authenticated API call — with the whole run surviving malformed cards,
+network hiccups, and page failures without crashing.
+
