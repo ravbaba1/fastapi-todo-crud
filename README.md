@@ -218,3 +218,95 @@ positive numeric price, and a rating between 1 and 5, then stored through an
 authenticated API call — with the whole run surviving malformed cards,
 network hiccups, and page failures without crashing.
 
+# Resilient AI Receipt Analysis Endpoint
+
+An enterprise-ready, deterministic AI middleware step integrated into a FastAPI backend. This project solves the core engineering challenge of integrating Large Language Models (LLMs) into structural workflows safely, reliably, and without relying on fragile conversational responses.
+
+Instead of a chat interface, this service serves as an automated background worker that reads chaotic, unstructured text dumps from store receipts and converts them into production-ready, validated JSON payloads suitable for database insertion.
+
+## 🚀 Core Features & Assignment Compliance
+
+1. **Deterministic Structured Outputs (The Schema)**
+   - Leverages **Pydantic** models to establish a strict, predictable data structure.
+   - Utilizes native Groq JSON mode (`response_format={"type": "json_object"}`) to mathematically force the underlying model (`llama-3.3-70b-versatile`) to output compliant objects, bypassing conversational fluff.
+
+2. **Fault-Tolerant Resilience (Retries)**
+   - Integrated with the **Tenacity** library to insulate the application against unstable third-party APIs.
+   - Automatically handles transient anomalies (such as API rate limits `429` or remote server errors `5xx`) using an exponential backoff strategy (up to 3 attempts).
+   - Intelligently skips retries on definitive client errors (like `400 Bad Request`), preventing infinite failure loops when a code patch is required.
+
+3. **Client-Side Boundaries (Timeouts)**
+   - Implements a hard 5-second connection cut-off via `httpx`.
+   - Prevents unresponsive upstream endpoints from hanging backend worker processes and blocking the event loop.
+
+4. **Automated Verification (8 Test Cases)**
+   - Uses `pytest` and `FastAPI.testclient` to run 8 distinct unit tests.
+   - Covers happy paths across global currencies, raw edge cases, adversarial inputs, and mock-simulated API failures.
+
+---
+
+## 🛠️ Architecture Layout
+
+```text
+[Client Payload] ──> [FastAPI Endpoint] ──> [Tenacity Retry Wrapper] ──(5s Timeout)──> [Groq LLM Engine]
+                                                                                              │
+[Validated Response] <── [Pydantic Parsing] <─── [Raw JSON Output] <──────────────────────────┘
+```
+
+---
+
+## 💻 Tech Stack
+- **Framework**: FastAPI
+- **AI Core**: Groq SDK (`llama-3.3-70b-versatile`)
+- **Validation**: Pydantic v2
+- **Resilience**: Tenacity & HTTPX
+- **Testing Suite**: Pytest
+
+---
+
+## 🔧 Installation & Setup
+
+1. **Install Dependencies**
+   Ensure your virtual environment is active, then execute:
+   ```bash
+   pip install fastapi uvicorn groq pydantic tenacity httpx pytest
+   ```
+
+2. **Configure Your API Credentials**
+   Obtain a free API Key from the [Groq Console](https://groq.com) and register it in your environment:
+   
+   *Windows (PowerShell):*
+   ```powershell
+   \$env:GROQ_API_KEY="your_actual_groq_api_key_here"
+   ```
+   *Linux/macOS:*
+   ```bash
+   export GROQ_API_KEY="your_actual_groq_api_key_here"
+   ```
+
+3. **Launch the Service**
+   Run the development server using Uvicorn:
+   ```bash
+   python -m uvicorn main:app --reload
+   ```
+   The interactive Swagger documentation will be accessible at: `http://127.0.0`
+
+---
+
+## 🧪 Testing Suite Execution
+
+To verify the endpoints, validate edge cases, and run the failure-simulation engine, execute the automated tests:
+
+```bash
+python -m pytest test_receipt.py
+```
+
+### Verified Test Vectors Covered:
+- **`test_valid_us_receipt`**: Happy path extracting USD totals and clean store name data.
+- **`test_valid_nigerian_receipt`**: Happy path validating NGN pricing and regional identifiers.
+- **`test_valid_euro_receipt`**: Happy path processing European formatting styles.
+- **`test_empty_receipt_text`**: Validates boundary performance when provided empty text inputs.
+- **`test_prompt_injection_attack`**: Asserts the structural validation framework successfully contains adversarial context overrides.
+- **`test_ai_timeout_handling`**: Simulates an upstream latency freeze and asserts a `504 Gateway Timeout` is emitted.
+- **`test_ai_invalid_json_returned`**: Mocks structured-output failures to ensure schema exceptions convert to `422 Unprocessable Content`.
+- **`test_missing_api_key_configuration`**: Validates system protection boundaries when underlying environment variables are unconfigured (`500 Server Error`).
