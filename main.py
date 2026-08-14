@@ -2,6 +2,7 @@ import os
 import sqlite3
 from typing import Annotated
 from fastapi import FastAPI, HTTPException, Depends, status
+from receipt_router import router as receipt_router
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -21,6 +22,7 @@ if not SUPABASE_URL or not SUPABASE_ANON_KEY:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 app = FastAPI(title="Flyrank Secure To-Do API")
+app.include_router(receipt_router)
 
 # Setup database on startup
 @app.on_event("startup")
